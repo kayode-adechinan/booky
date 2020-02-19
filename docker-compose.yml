@@ -1,0 +1,44 @@
+version: "3.7"
+
+services:
+  redis:
+    image: redis
+
+  db:
+    image: kartoza/postgis:12.0
+    volumes:
+      - b_postgres:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASS=${POSTGRES_PASS}
+    ports:
+      - 5432:5432
+    restart: always
+
+  web:
+    build: .
+    command: bash -c "while !</dev/tcp/db/5432; do sleep 1; done; python manage.py collectstatic --noinput && python manage.py makemigrations && python manage.py migrate  && gunicorn api.wsgi:application --bind 0.0.0.0:8000"
+    volumes:
+      - .:/code
+      - b_static:/static
+      - b_media:/media
+    expose:
+      - 8000
+    depends_on:
+      - db
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - 8000:80
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - b_static:/static
+      - b_media:/media
+    depends_on:
+      - web
+
+volumes:
+  b_postgres:
+  b_static:
+  b_media:
